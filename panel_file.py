@@ -1,5 +1,11 @@
 import numpy, struct, os
 
+"""
+    Not written by Greg Blumberg (OU/CIMMS)
+
+    I got this file from one of Dave Turner's colleagues (Aronne Merrelli)
+"""
+
 class panel_file:
     """
     Object class defining LBLRTM fortran formatted binary file.

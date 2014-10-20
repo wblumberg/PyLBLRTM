@@ -1,6 +1,28 @@
 import numpy as np
 from pylab import *
 
+"""
+    SCRIPT NAME:
+    radxfer.py
+
+    AUTHOR:
+    Greg Blumberg
+    wblumberg@ou.edu
+
+    DESCRIPTION:
+    The primary argument for this code is the opd, which are the optical depths 
+    set at the wave number grid (it's a 2D array of dimensions (layers, wnums)).
+
+    This code also takes a wavenumber grid, a temperature profile, a surface temperature,
+    a surface emissivity, and a Boolean designating whether or not the calculation is
+    upwelling or downwelling and performs the radiative transfer calculations.
+
+    The temperature profile should be of the dimension (layers) and can come from the
+    tape7_reader.py file.
+
+    This code was based off of Dave Turner's (NSSL) IDL code.
+"""
+
 def planck(wnum, temp):
     c1 = 1.1910427e-5 #mW/m2.sr.cm-1
     c2 = 1.4387752 #K/cm

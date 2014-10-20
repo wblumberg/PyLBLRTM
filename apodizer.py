@@ -6,6 +6,7 @@ import numpy as np
 
     SCRIPT AUTHOR:
     Greg Blumberg
+    wblumberg@ou.edu
 
     DATE MADE: 
     9/25/2013

@@ -3,6 +3,27 @@ import sys
 import numpy as np
 from pylab import *
 
+"""
+    SCRIPT NAME:
+    tape5_writer.py
+
+    AUTHOR:
+    Greg Blumberg (OU/CIMMS)
+    wblumberg@ou.edu, greg.blumberg@ou.edu
+
+    DESCRIPTION:
+    This file will generate a default TAPE5 file using these arguments:
+    
+    TAPE5_line - a line describing what the TAPE5 file does
+    temperature - an array of length l (Celsius), which can come from a radiosonde
+    pressure - an array of length l (millibars)
+    altitude - an array of length l (kilometers)
+    mxr - an array of length l of the water vapor mixing ratio (g/kg) 
+    outfile - the name of the file to write all the TAPE5 calculations to.
+
+    Based off of Dave Turner's rundecker, but significantly more stripped down
+"""
+
 #Clausius Claperyon
 def cc(temp, L):
     R_v = 461.5 # J/kg
@@ -181,7 +202,7 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     #7 - O2 ; oxygen
     """ TAPE5 RECORD 1.3.B VARIABLES """
     #REQUIRED SINCE NMOL_SCAL = 7
-    #Make sure you convert it to parts per million (not 380 but 380*10**-6
+    #Make sure you convert it to parts per million (not 380 but 380*10**-6)..will scale CO2?
     HMOL_VALS = [1,380e-6,1,1,1,1,1]
 
     """ TAPE5 RECORD 3.1 VARIABLES """
@@ -197,7 +218,7 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     """ TAPE5 RECORD 3.2 VARIABLES """
     H1 = 0 # Observer altitude
     H2 = 20 # End point altitude 
-    ANGLE = 0 # zenith angle at H1 (degrees)
+    ANGLE = 0 # zenith angle at H1 (degrees) (can be used for satellite computations)
 
     """ TAPE5 RECORD 3.3B VARIABLES """
     ZNBD = [     0.000  ,  0.100   ,  0.200   ,  0.300   ,  0.400   ,  0.500  ,   0.600 ,    0.700,
@@ -207,8 +228,9 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
          9.500  ,  10.000  ,  10.500  ,  11.000  ,  11.500 ,   12.000  ,  12.500  ,  13.000,
         13.500  ,  14.000  ,  14.500   , 15.000   , 16.000  ,  17.000  ,  18.000  ,  19.000,
         20.000] #This is the array of heights in km the profile will be interpolated to in the LBLRTM
-    
-    ZNBD = ZNBD[::2]
+    # I SHOULD CHANGE THIS 
+
+    ZNBD = ZNBD[::2] # This cuts down on the number of heights the profile will be intepolated to (should make this and ZNBD an argument)
     IBMAX = len(ZNBD)
 
     """ TAPE5 RECORD 3.5 & 3.6 VARIABLES """
@@ -216,7 +238,7 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     JCHARP = "A" #Character representing Units for Pressure
     JCHART = "B" #Character representing units for temperature
     JLONG = ""
-    JCHAR = " C666666"
+    JCHAR = " C666666" # This represents the units of the gas concentrations we are specifying (C is g/kg), 6 means use the US Std Atmos.
     #altitude = []
     #temperature = []
     #pressure = []
@@ -238,7 +260,7 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     write(' MG=%1i', IMRG)
     write(' LA=%1i', ILAS)
     write(' MS=%1i', IOD)
-    write(' XS=%1i', IXSECT)
+    write(' XS=%1i', IXSECT) # This was some kind of cross sections
     write('  %2i', MPTS)
     write('  %2i', NPTS)
     fid.write('\n')
@@ -303,7 +325,7 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
 
 
     #Card 3.2
-    # This is the range of heights (h1-h2) in the LBLRTM height grid 
+    # This writes the range of heights (h1-h2) in the LBLRTM height grid 
     # and the angle the reciever is at 
     write('%10.3f', H1)
     write('%10.3f', H2)

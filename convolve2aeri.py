@@ -3,6 +3,22 @@ import numpy as np
 import sys
 import panel_file
 
+"""
+    SCRIPT:
+    convolve_to_aeri
+
+    AUTHOR:
+    Greg Blumberg
+    wblumberg@ou.edu
+
+    DESCRIPTION:
+    This script takes an AERI radiance spectra and wavenumber grid from the
+    LBLRTM monochromatic calculations and convolves it with the AERI 
+    response function to produce an AERI radiance observation.
+
+    It was designed after Dave Turner's IDL code.
+"""
+
 def convolve_to_aeri(wnum, spectra):
 
 #ods = panel_file.panel_file('../idl_ex/out/ODdeflt_001', do_load_data=True)    
