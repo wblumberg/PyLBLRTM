@@ -8,6 +8,8 @@ setup(name='PyLBLRTM',
       author='Greg Blumberg',
       author_email='wblumberg@ou.edu',
       packages=['pylblrtm'],
+      package_data = {"": ["*.npy", "*.md", "*.txt"]}
+
 )
 
 
