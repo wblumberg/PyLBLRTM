@@ -7,6 +7,7 @@ setup(name='PyLBLRTM',
       description='Python scripts to run and analyze the LBLRTM output',
       author='Greg Blumberg',
       author_email='wblumberg@ou.edu',
+      packages=['pylblrtm'],
 )
 
 
