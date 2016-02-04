@@ -8,7 +8,7 @@ sys.path.append('../')
 import apodizer
 import tape7_reader as t7r
 from pylab import *
-from IPython.parallel import Client
+#from IPython.parallel import Client
 import subprocess
 
 """
