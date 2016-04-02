@@ -58,36 +58,87 @@ def rh2w(rh, pres, temp):
 #data = Dataset(sys.argv[1])
 #out_file = sys.argv[2]
 
-def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
+def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1], **kwargs):
+    """
+        makeFile()
 
-    #print "Making TAPE5 for LBLRTM using: ", sys.argv[1]
+        This function creates an LBLRTM TAPE5 input file using the arguments passed to it.
+        This TAPE5 writer only recognizes the contributions from the first 7 molecules of the 
+        TAPE1 file, which are H2O, CO2, O3, N2O, CO, CH4, and O2.
+
+        Website explaining the TAPE5 format:
+        http://web.gps.caltech.edu/~drf/misc/lblrtm/lblrtm_toc.html
+
+        Required Arguments
+        ------------------
+        out_file : a string containing the filename and/or path for the TAPE5 file.
+        V1 : the beginning wavenumber of the portion of the spectra we want to simulate (cm-1)
+        V2 : the ending wavenumber of the portion of the spectra we want to simulate (cm-1)
+        MODEL : an integer describing whether or not the TAPE5 should use a user-defined profile
+                or a default profile that is managed by the LBLRTM
+                
+                Options:
+                    0 - user-defined profile (requries that wvmr, pres, tmpc, and hght are specified)
+                    1 - tropical model
+                    2 - midlatitude summer model
+                    3 - midlatitude winter model
+                    4 - subarctic summer model
+                    5 - subarctic winter model
+                    6 - U.S. standard 1976 
+
+        HMOL_VALS : the scaling factor for the 7 primary gases.  If the value is not 1,
+                    the value is specified in parts per million * e-6.  Default values if not
+                    specified is 380e-6 for CO2 and unscaled for all other gases.
+
+        ZNBD : an array containing the height grid for the LBLRTM to use (km) (OPTIONAL)
+               not setting this variable will cause the writer to use a default array going up to
+               20 km.
+        
+        Keyword Arguments
+        ---------------------------
+        TAPE5_line : a string describing what the TAPE5 does or is for (for record keeping)
+        if MODEL == 0:
+            wvmr : an array containing the water vapor mixing ratio profile (g/kg)
+            pres : an array containing the pressure profile (mb)
+            tmpc : an array containing the temperature profile (C)
+            hght : an array containing the height profile (km)
+    """
+
     print "This TAPE5 will be saved in: ", out_file
-
-    #temperature = data.variables['tdry'][:]
-    #pressure = data.variables['pres'][:]
-    #altitude = data.variables['alt'][:]/1000.
-    #altitude = altitude - altitude[0]
-    #rh = data.variables['rh'][:]
-
-    #mxr, newrh = rh2w(rh, pressure, temperature)
 
     species_vec = np.ones(7,)
 
-    full_atm = np.zeros((temperature.shape[0], 3+7))
-    full_atm[:,3] = mxr
+    # Initialize the full_atm array to
+    if MODEL == 0:
+        if 'wvmr' not in kwargs or 'tmpc' not in kwargs or 'pres' not in kwargs or 'hght' not in kwargs:
+            print "MODEL == 0, but argument is missing kwargs to specify the user-specified profile."
+            print "TAPE5 not created."
+            return
 
+        temperature = kwargs.get('tmpc')
+        full_atm = np.zeros((temperature.shape[0], 3+7))
+        full_atm[:,3] = kwargs.get('wvmr') 
+        pressure = kwargs.get('pres')
+        altitude = kwargs.get('hght')
+
+    # Open the up the file to write to.
     fid = open(out_file, 'w')
 
+    # Create a function that will write to the TAPE5 file using a specific format 
     def write(format, var):
         try:
             fid.write(format % var)
         except:
             fid.write(format % 0)
 
-    fid.write(TAPE5_line +'\n')
+    # Write the line describing the TAPE5 and what it is for
+    fid.write(kwargs.get('TAPE5_line', '') +'\n')
+
+    # Write some text file alignment text
     fid.write('         1         2         3         4         5         6         7         8         9         0\n')
     fid.write('123456789 123456789 123456789 123456789 123456789 123456789 123456789 123456789 123456789 123456789 123456789\n')
     fid.write('$ None\n')
+    
     """
     Section 1:  Using the LBLRTM to create the needed input for LBLDIS
 
@@ -176,8 +227,8 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     NPTS = 0 # num of values printed for beginning and ending of each panel as a result of merge of current layer w/ prev layers
 
     """ TAPE5 RECORD 1.3 VARIABLES """
-    V1 = 400 # Beginning wavenumber for the spectra
-    V2 = 1900 # Ending wavenumber for the spectra
+    V1 = V1 # Beginning wavenumber for the spectra
+    V2 = V2 # Ending wavenumber for the spectra
     SAMPLE = 4
     DVSET = 0 # THIS SELECTION MAY BE IMPORTANT FOR WHEN WE NEED TO GENERATE THE OPTICAL DEPTH DV CONSISTENT ACROSS ALL HEIGHTS
     ALFALO = 0.04 #DEFAULT = 0.04
@@ -190,7 +241,15 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
 
     """ TAPE5 RECORD 1.3.A VARIABLES """
     #REQUIRED SINCE NMOL_SCAL = 7 IN THE ABOVE CODE
-    HMOL_SCALE = '1M11111'
+    #HMOL_SCALE = '1M11111' # Default
+    HMOL_SCALE = ''
+    for i in HMOL_VALS:
+        if i == 1:
+            # scaling factor used directly to scale profile
+            HMOL_SCALE += '1'
+        else:
+            # volume mixing ratio wrt dry air for the total column to which the profile will be scaled
+            HMOL_SCALE += 'M'
 
     #Molecules
     #1 - H2O ; water vapor
@@ -206,7 +265,7 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     HMOL_VALS = [1,380e-6,1,1,1,1,1]
 
     """ TAPE5 RECORD 3.1 VARIABLES """
-    MODEL = 0 # Selects atmospheric profile
+    #MODEL = 0 # Selects atmospheric profile
     ITYPE = 2 #selects type of path (slant path from H1 to H2)
     IBMAX = 49 # number of layer boundaries read in on Record 3.3B
     NOZERO = 1
@@ -215,35 +274,29 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     IPUNCH = 1 # 1 - will results in the LBLRTM creating TAPE7 which contains the layering and structure used in the OD calcs.
     #CO2MX = 380 #ppm (default is 330 ppm)
 
+    """ TAPE5 RECORD 3.3B VARIABLES """
+    if ZNBD is None:
+        ZNBD = [     0.000  ,  0.100   ,  0.200   ,  0.300   ,  0.400   ,  0.500  ,   0.600 ,    0.700,
+                     0.800  ,   0.900  ,   1.000   ,  1.250   ,  1.500  ,   1.750   ,  2.000 ,    2.250,
+                     2.500   ,  2.750  ,   3.000  ,   3.250   ,  3.500  ,   4.000   ,  4.500   ,  5.000,
+                     5.500 ,    6.000   ,  6.500  ,   7.000  ,   7.500  ,   8.000   ,  8.500   ,  9.000,
+                     9.500  ,  10.000  ,  10.500  ,  11.000  ,  11.500 ,   12.000  ,  12.500  ,  13.000,
+                    13.500  ,  14.000  ,  14.500   , 15.000   , 16.000  ,  17.000  ,  18.000  ,  19.000,
+                    20.000] #This is the array of heights in km the profile will be interpolated to in the LBLRTM
+
     """ TAPE5 RECORD 3.2 VARIABLES """
-    H1 = 0 # Observer altitude
-    H2 = 20 # End point altitude 
+    H1 = np.min(ZNBD) # Observer altitude
+    H2 = np.max(ZNBD) # End point altitude 
     ANGLE = 0 # zenith angle at H1 (degrees) (can be used for satellite computations)
 
-    """ TAPE5 RECORD 3.3B VARIABLES """
-    ZNBD = [     0.000  ,  0.100   ,  0.200   ,  0.300   ,  0.400   ,  0.500  ,   0.600 ,    0.700,
-         0.800  ,   0.900  ,   1.000   ,  1.250   ,  1.500  ,   1.750   ,  2.000 ,    2.250,
-         2.500   ,  2.750  ,   3.000  ,   3.250   ,  3.500  ,   4.000   ,  4.500   ,  5.000,
-         5.500 ,    6.000   ,  6.500  ,   7.000  ,   7.500  ,   8.000   ,  8.500   ,  9.000,
-         9.500  ,  10.000  ,  10.500  ,  11.000  ,  11.500 ,   12.000  ,  12.500  ,  13.000,
-        13.500  ,  14.000  ,  14.500   , 15.000   , 16.000  ,  17.000  ,  18.000  ,  19.000,
-        20.000] #This is the array of heights in km the profile will be interpolated to in the LBLRTM
-    # I SHOULD CHANGE THIS 
-
-    ZNBD = ZNBD[::2] # This cuts down on the number of heights the profile will be intepolated to (should make this and ZNBD an argument)
     IBMAX = len(ZNBD)
 
     """ TAPE5 RECORD 3.5 & 3.6 VARIABLES """
     HMOD = " User supplied profile"
-    JCHARP = "A" #Character representing Units for Pressure
-    JCHART = "B" #Character representing units for temperature
+    JCHARP = "A" #Character representing Units for Pressure (mb)
+    JCHART = "B" #Character representing units for temperature (Celsius
     JLONG = ""
     JCHAR = " C666666" # This represents the units of the gas concentrations we are specifying (C is g/kg), 6 means use the US Std Atmos.
-    #altitude = []
-    #temperature = []
-    #pressure = []
-
-    #species_vec = []
 
     #Card 1.2
     # Print out the main flags for the first line of the TAPE5 file
@@ -285,7 +338,7 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
     write('%s', HMOL_SCALE)
     fid.write('\n')
 
-    #Card 1.3.b
+    #Card 1.3.b - Write out the molecular scaling values
     for i in range(1,len(HMOL_VALS)+1,1):
             write('%15.7e', HMOL_VALS[i-1])
             if i < len(HMOL_VALS) and round(i/8.) == i/8.:
@@ -355,9 +408,11 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
         write('%10.3f', ALTD1)
         write('%10.3f', ALTD2)
         fid.write('\n')
-    #print MODEL
 
-
+    # This if statement only is entered if we've selected the user-defined profile.
+    # If we're using other default atmospheres (e.g. US Standard Atmosphere) then this isn't run.
+    # However, if the user-defined profile is defined, then all gasses except for H2O are assumed
+    # to come from the US standard atmosphere profile (setting 6).
     if MODEL == 0:
         #Card 3.4
         # Printing out the number of record in the user-supplied profile
@@ -371,9 +426,9 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
         for i in range(0,len(altitude),1):
             #Print out the height, pressure, and temperature values, along with the units string
             #print "Print"
-            write('%10.3f', altitude[i])
-            write('%10.3f', pressure[i])
-            write('%10.3f', temperature[i])
+            write('%10.3f', altitude[i]) # units are km
+            write('%10.3f', pressure[i]) # units are mb
+            write('%10.3f', temperature[i]) # units are Celsius
             fid.write('     ')
             #Here is where we print out the units string
             write('%s', JCHARP)
@@ -385,8 +440,6 @@ def makeFile(TAPE5_line, temperature, pressure, altitude, mxr, out_file):
             fid.write('\n')
 
             #Print out the values for each atmospheric molecule constituent
-            #print len(species_vec)
-            #print len(species_vec)
             for j in range(1, len(species_vec)+1):
                 if species_vec[j-1] == 1:
 
