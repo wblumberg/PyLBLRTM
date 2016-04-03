@@ -24,6 +24,24 @@ import sys
     This code was based off of Dave Turner's (NSSL) IDL code.
 """
 
+def stefan_boltzmann(tmpk, emissivity=1):
+    """
+        Stefan Boltzmann Law
+
+        Returns black-body flux in W m-2.
+
+        Arguments
+        ---------
+        tmpk : temperature of the object (Kelvin)
+        emissivity : emissivity of the object (unitless default = 1)
+
+        Returns
+        -------
+        flux : flux in W/m2
+    """
+    SBCONST = 5.670373e-8 # W m-2 K-4
+    return emissivity * SBCONST * np.power(tmpk, 4)
+
 def planck(wnum, temp):
     c1 = 1.1910427e-5 #mW/m2.sr.cm-1
     c2 = 1.4387752 #K/cm
