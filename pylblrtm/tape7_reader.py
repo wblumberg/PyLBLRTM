@@ -95,7 +95,7 @@ def readTape(filename):
         broaddens[i] = moldens_tmp[7]
     
     f.close()
-    print moldens
+    #print moldens
     return np.hstack((z_bot[0],z_top)), np.hstack((t_bot[0], t_top))
     
 #readTape('../lblex/out/TAPE7')
