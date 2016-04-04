@@ -80,7 +80,7 @@ def rt(wnum, temp, opd, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False,
     # B_close is the Planck function for the temperature at the edge of the layer 
     # B_far | --> | B_close
     # 
-    for k in np.arange(k_start, k_end, k_step)[::-1]:
+    for k in np.arange(k_start, k_end, k_step):
         trans = np.asarray(np.exp(-1. * opd[k,:]), dtype=np.float64) # Compute the transmissivity of the layer
         if upwelling is True:
             # Compute the b_boundary from the bottom layer up

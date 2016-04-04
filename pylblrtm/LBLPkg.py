@@ -49,22 +49,29 @@ def read_and_interpODs(OD_dir):
         the 2D array of optical depths and the maximum resolution wavenumber
         grid.
     """
+    switch = 1
 
     files = np.sort(glob.glob(OD_dir + '/ODdeflt_*'))[::-1]
 
     print "Reading in optical depth files..."
     #This code loads in the highest OD layer into memory, the wnum grid
     #for this layer becomes the standard wavenumber grid for all other layers
-    fd = panel_file.panel_file(files[0], do_load_data=True)
-    base_wnum = fd.v
-    #fd = panel_file.panel_file(files[0], do_load_data=True)
-    print "\tReading in:",files[0]
-    ods = np.empty((len(files), len(base_wnum)))
-    ods[len(files)-1] = fd.data1
+    if switch == 0:
+        fd = panel_file.panel_file(files[0], do_load_data=True)
+        base_wnum = fd.v
+        print "\tReading in:",files[0]
+        ods = np.empty((len(files), len(base_wnum)))
+        ods[len(files)-1] = fd.data1
+        begin_idx = 1
+    else:
+        fd = panel_file.panel_file(files[-1], do_load_data=True)
+        base_wnum = fd.v
+        ods = np.empty((len(files), len(base_wnum)))
+        begin_idx = 0
 
     #This code loads in the rest of the OD layers and interpolated them to the
     #wavenumber grid that is of the highest layer
-    for f in np.arange(1,len(files),1):
+    for f in np.arange(begin_idx,len(files),1):
         print "\tReading in:",files[f]
         fd = panel_file.panel_file(files[f], do_load_data=True)
         ods[len(files)-1-f] = np.interp(base_wnum, fd.v, fd.data1)
@@ -196,35 +203,45 @@ class LBLPkg:
             wnum - the evenly spaced wavenumber grid (to determine the window of the boxcar)
             delta - the size of the boxcar window (cm-1)
         """
-        dv = np.diff(wnum)
+        dv = np.diff(wnum)[0]
         N = delta/dv
         r = convolve(y, np.ones(N)/N, mode='valid')
         return r
 
-    def filterRadiance(self, delta=5, method=1, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False):
+    def filterRadiance(self, delta=5, method=1, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False, debug=False):
             
         wnums = self.base_wnum
         filtered_wnum = self.filterSpectra(wnums, wnums, delta)
         filtered_ods = np.empty((len(self.ods), len(filtered_wnum)))
         if method == 1:
             # Do convolution in OD space.
-            for i in range(len(ods)):
-                filtered_ods[i,:] = self.filterSpectra(ods[i,:], wnums, delta)
+            for i in range(len(self.ods)):
+                if debug is True:
+                    print "Convolving ODs @ LEVEL:", i
+                    print "Max:", np.max(self.ods[i,:]), "Min:", np.min(self.ods[i,:])
+                filtered_ods[i,:] = self.filterSpectra(self.ods[i,:], wnums, delta)
         elif method == 2:
             # Do convolution in transmission space.
-            for i in range(len(ods)):
-                trans = self.od2t(ods[i,:])
+            for i in range(len(self.ods)):
+                trans = self.od2t(self.ods[i,:])
+                if debug is True:
+                    print "Convolving transmission @ level:",i
+                    print "Max:", np.max(trans), "Min:", np.min(trans)
                 trans_cov = self.filterSpectra(trans, wnums, delta)
-                filtered_ods[i,:] = t2od(trans_cov)
-
+                filtered_ods[i,:] = self.t2od(trans_cov)
+        elif method == 3:
+            # Do the convolution in layer-to-instrument transmission.
+            print "HI"
         rad = rxf.rt(filtered_wnum, self.temp, filtered_ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
+
+        return filtered_wnum, rad
 
     def od2t(self, od=None):
         if od is None:
             od = self.ods
         return np.exp(-od)
     
-    def t2od(t):
+    def t2od(self, t):
         return -np.log(t)
 
     def computeFlux(self, upwelling=False, v1=400, v2=2000, sfc_t=300, sfc_e=1, dtheta=30):
