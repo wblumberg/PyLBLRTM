@@ -7,10 +7,8 @@ import panel_file
 sys.path.append('../')
 import apodizer
 import tape7_reader as t7r
-from pylab import *
-#from IPython.parallel import Client
 import subprocess
-#from scipy import integrate
+from scipy import convolve
 
 """
     Object for Reading in LBLRTM data and doing performing calculations from the data.
@@ -59,6 +57,7 @@ def read_and_interpODs(OD_dir):
     #for this layer becomes the standard wavenumber grid for all other layers
     fd = panel_file.panel_file(files[0], do_load_data=True)
     base_wnum = fd.v
+    #fd = panel_file.panel_file(files[0], do_load_data=True)
     print "\tReading in:",files[0]
     ods = np.empty((len(files), len(base_wnum)))
     ods[len(files)-1] = fd.data1
@@ -184,10 +183,49 @@ class LBLPkg:
         rad = rxf.rt(wnums, temp, ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
         return wnums, rad
 
-    def od2trans(self, od=None):
+    def filterSpectra(self, y, wnum, delta=5):
+        """
+            filterSpectra
+
+            Convolves a spectrum with the boxcar function specified by the delta
+            argument.  Returns the spectrum back to the user once done.
+
+            Arguments
+            ---------
+            y - the spectrum requested (on a specific wavenumber grid)
+            wnum - the evenly spaced wavenumber grid (to determine the window of the boxcar)
+            delta - the size of the boxcar window (cm-1)
+        """
+        dv = np.diff(wnum)
+        N = delta/dv
+        r = convolve(y, np.ones(N)/N, mode='valid')
+        return r
+
+    def filterRadiance(self, delta=5, method=1, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False):
+            
+        wnums = self.base_wnum
+        filtered_wnum = self.filterSpectra(wnums, wnums, delta)
+        filtered_ods = np.empty((len(self.ods), len(filtered_wnum)))
+        if method == 1:
+            # Do convolution in OD space.
+            for i in range(len(ods)):
+                filtered_ods[i,:] = self.filterSpectra(ods[i,:], wnums, delta)
+        elif method == 2:
+            # Do convolution in transmission space.
+            for i in range(len(ods)):
+                trans = self.od2t(ods[i,:])
+                trans_cov = self.filterSpectra(trans, wnums, delta)
+                filtered_ods[i,:] = t2od(trans_cov)
+
+        rad = rxf.rt(filtered_wnum, self.temp, filtered_ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
+
+    def od2t(self, od=None):
         if od is None:
             od = self.ods
         return np.exp(-od)
+    
+    def t2od(t):
+        return -np.log(t)
 
     def computeFlux(self, upwelling=False, v1=400, v2=2000, sfc_t=300, sfc_e=1, dtheta=30):
         # if layer = 0
