@@ -10,7 +10,7 @@ import tape7_reader as t7r
 from pylab import *
 #from IPython.parallel import Client
 import subprocess
-from scipy import integrate
+#from scipy import integrate
 
 """
     Object for Reading in LBLRTM data and doing performing calculations from the data.
@@ -52,22 +52,24 @@ def read_and_interpODs(OD_dir):
         grid.
     """
 
-    files = glob.glob(OD_dir + '/ODdeflt_*')
+    files = np.sort(glob.glob(OD_dir + '/ODdeflt_*'))[::-1]
 
+    print "Reading in optical depth files..."
     #This code loads in the highest OD layer into memory, the wnum grid
     #for this layer becomes the standard wavenumber grid for all other layers
-    files = np.sort(files)
     fd = panel_file.panel_file(files[0], do_load_data=True)
     base_wnum = fd.v
+    print "\tReading in:",files[0]
     ods = np.empty((len(files), len(base_wnum)))
     ods[len(files)-1] = fd.data1
 
     #This code loads in the rest of the OD layers and interpolated them to the
     #wavenumber grid that is of the highest layer
-    for f in np.arange(len(files)-2,-1,-1):
+    for f in np.arange(1,len(files),1):
+        print "\tReading in:",files[f]
         fd = panel_file.panel_file(files[f], do_load_data=True)
-        ods[f] = np.interp(base_wnum, fd.v, fd.data1)
-
+        ods[len(files)-1-f] = np.interp(base_wnum, fd.v, fd.data1)
+    
     return ods, base_wnum
 
 def computeJacobian(spectra1, spectra2, deltaX):
@@ -77,7 +79,9 @@ class LBLPkg:
     def __init__(self, lblOUTdir):
         self.lbl_datadir = lblOUTdir
         ods, wnum = read_and_interpODs(lblOUTdir)
+        print "Reading in TAPE7..."
         z, t = t7r.readTape(lblOUTdir + '/TAPE7')
+        print "LBLOUT files loaded."
         self.ods = ods #Read in ODs here
         self.temp = t #Temperature profile
         self.z = z #height profile
@@ -177,7 +181,7 @@ class LBLPkg:
         wnums = self.base_wnum
         temp = self.temp
         ods = self.ods
-        rad = rxf.rt(wnums, temp[::-1], ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
+        rad = rxf.rt(wnums, temp, ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
         return wnums, rad
 
     def od2trans(self, od=None):
@@ -213,5 +217,5 @@ class LBLPkg:
         integrated = integrated * (2*np.pi) 
         print integrated 
         print integrated.shape 
-        print integrate.quad(lambda x: np.interp(x, self.base_wnum, integrated), v1, v2)[0] * 0.001
+        #print integrate.quad(lambda x: np.interp(x, self.base_wnum, integrated), v1, v2)[0] * 0.001
 
