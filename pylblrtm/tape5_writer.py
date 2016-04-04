@@ -52,19 +52,27 @@ def rh2w(rh, pres, temp):
 
     return mxr, rh
 
-"""
-    sys.argv[1] should be the path to an ARM netCDF4 sonde file.
-"""
-#data = Dataset(sys.argv[1])
-#out_file = sys.argv[2]
-
-def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1], **kwargs):
+def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,1,1,1,1], upwelling=False,**kwargs):
     """
         makeFile()
 
         This function creates an LBLRTM TAPE5 input file using the arguments passed to it.
         This TAPE5 writer only recognizes the contributions from the first 7 molecules of the 
         TAPE1 file, which are H2O, CO2, O3, N2O, CO, CH4, and O2.
+
+        This TAPE5 writer is a work in progress.  Not all LBLRTM functions are supported, but
+        currently this function can create TAPE5 files for LBLRTM outputs that can be read by
+        LBLDIS or the LBLPkg object included in PyLBLRTM.  This function does this through
+        the IEMIT=0 switch, which outputs gaseous optical depth files from the LBLRTM instead of
+        radiance files.  In addition, switching IEMIT to 1 will switch the program to perform 
+        it's own RT calculations and output them into TAPE10 and TAPE12 files.  It might be nice
+        in the future to allow the LBLPkg to read in those files too.
+
+        Although the LBLRTM supports scanning, interpolating, and FFTing the radiance spectrum
+        it computes, this function does not support that capability yet.  At some point,
+        I'll implement it and make a class that is an ILS (instrument line shape) class that
+        contains all the parameters the LBLRTM needs to convert the monochromatic radiance to
+        something that is observed by an instrument.
 
         Website explaining the TAPE5 format:
         http://web.gps.caltech.edu/~drf/misc/lblrtm/lblrtm_toc.html
@@ -86,6 +94,8 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
                     5 - subarctic winter model
                     6 - U.S. standard 1976 
 
+        Optional Arguments With Defaults
+        --------------------------------
         HMOL_VALS : the scaling factor for the 7 primary gases.  If the value is not 1,
                     the value is specified in parts per million * e-6.  Default values if not
                     specified is 380e-6 for CO2 and unscaled for all other gases.
@@ -94,14 +104,35 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
                not setting this variable will cause the writer to use a default array going up to
                20 km.
         
+        IEMIT : configure TAPE5 to perform optical depth calculations or radiance/transmittance calculations
+                0 - optical depth only (default, used for LBLDIS or your own RT calculations)
+                1 - radiance/transmittance (can apply instrument lineshape)
+        
+        upwelling : if IEMIT is equal to 1, computes the upwelling radiance if True
+                Default is False
+                True - computes upwelling radiance (sets H1 - max(ZNBD), H2 - min(ZBND), ANGLE=180)
+                False - computes downwelling radiance (sets H1 - min(ZBND), H2 - max(ZNBD), ANGLE=0)
+                if True, checks for sfc_e and sfc_t in kwargs.
+                if False, sets sfc_e = 1 and sfc_1 = 0.0001
+        
         Keyword Arguments
-        ---------------------------
+        -----------------
         TAPE5_line : a string describing what the TAPE5 does or is for (for record keeping)
+        
         if MODEL == 0:
             wvmr : an array containing the water vapor mixing ratio profile (g/kg)
             pres : an array containing the pressure profile (mb)
             tmpc : an array containing the temperature profile (C)
             hght : an array containing the height profile (km)
+
+        if IEMIT != 0:
+            # must be specified if an upwelling calculation is done
+            sfc_r : what type of surface reflectance to consider
+                    's' - spectral
+                    'l' - Lambertian (only applicable for upwelling calculations 90 <= angle <= 180)
+            sfc_e : emissivity value at H2 (point furthest away from observer)
+            sfc_t : surface temperature at H2 (Kelvin)
+            ILS : an instrument lineshape object to apply to the spectrum (Not implemented yet)
     """
 
     print "This TAPE5 will be saved in: ", out_file
@@ -194,6 +225,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     """
 
     """ TAPE5 RECORD 1.2 VARIABLES """
+    # This contains the primary settings for the LBLRTM.  It tells the model how we want to run the code.
     #HI
     IHIRAC = 1 # 1 - Voigt Profile
     #F4
@@ -202,24 +234,33 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     ICNTNM = 1 # 1 - Use the continumn
     #AE
     IAERSL = 0 # 0 - no aerosols used (this is also connected to the commented section below that has no aerosols)
+               # aerosol calculations handled by LBLDIS
     #EM
-    IEMIT = 0 # if 0 - perform optical depth calculations only
+    IEMIT = IEMIT # 0 - perform optical depth calculations only
+                  # 1 - radiance and transmittance (W / cm2 sr-1 cm-1) 
     #SC
-    ISCAN = 0 # 0 - Scanning function
+    ISCAN = 0 # 0 - No scanning function
+              # 1 - apply scanning function
+              # 2 - apply interpolation procedure to results
+              # 3 - apply FFT scan
     #IF
-    IFILTR = 0 # 0 - no
+    IFILTR = 0 # 0 - no, 1 - yes
     #PL
-    IPLOT = 0 # 0 - no
+    IPLOT = 0 # 0 - no, 1 - yes
     #TS
-    ITEST = 0 # 0 - no
+    ITEST = 0 # 0 - no, 1 - yes
     #AM
     IATM = 1 # 1 - LBLRTM should read in the profile information specified in the TAPE5
     #MG
-    IMRG = 1 # 1 - This will output the optical depths for each layer in their own files.
+    if IEMIT == 0: # When we want to look at the ODs and not the radiances/transmission.
+        IMRG = 1 # 1 - This will output the optical depths for each layer in their own files.
+    else:
+        IMRG = 0 # This will ensure that the TAPE10 and TAPE12 will have something in it.
     #LA
     ILAS = 0 # Flag for laser options
     #MS
     IOD = 0 # 0 - output the ODs for each layer at the default spectral resolution used by the LBLRTM
+            # 
     #XS
     IXSECT = 0 # 0 - use no cross-sections for the LBLRTM
 
@@ -227,6 +268,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     NPTS = 0 # num of values printed for beginning and ending of each panel as a result of merge of current layer w/ prev layers
 
     """ TAPE5 RECORD 1.3 VARIABLES """
+    # This describes the portion of the EM spectrum we want to look at.
     V1 = V1 # Beginning wavenumber for the spectra
     V2 = V2 # Ending wavenumber for the spectra
     SAMPLE = 4
@@ -262,9 +304,27 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     """ TAPE5 RECORD 1.3.B VARIABLES """
     #REQUIRED SINCE NMOL_SCAL = 7
     #Make sure you convert it to parts per million (not 380 but 380*10**-6)..will scale CO2?
-    HMOL_VALS = [1,380e-6,1,1,1,1,1]
+    #This is now set elsewhere but default will be: HMOL_VALS = [1,380e-6,1,1,1,1,1]
 
+    """ TAPE5 RECORD 1.4 VARIABLES """
+    # emissivity and t boundary and reflectivity variables (describes sfc of planet)
+    if upwelling is False:
+        # Set parameters for a downwelling calculation
+        TBOUND = 0.00001 # Kelvin
+        SREMIS = 1 # surface emissivity 
+        surf_refl = 's' # treat the surfaces as Lambertian (reflects isotropically)
+    else:
+        # Set parameters for an upwelling calculation
+        TBOUND = kwargs.get('sfc_t', None)
+        SREMIS = kwargs.get('sfc_e', 1)
+        if TBOUND is None:
+            print "You asked for an upwelling calculation, but didn't give a SFC_T argument to the function!"
+            print "Aborting TAPE5 creation."
+            sys.exit()
+        surf_refl = kwargs.get('sfc_r', 'l')
+        
     """ TAPE5 RECORD 3.1 VARIABLES """
+    # This describes the type of atmosphere, the path the radiation goes to, and the gases in the simulation.
     #MODEL = 0 # Selects atmospheric profile
     ITYPE = 2 #selects type of path (slant path from H1 to H2)
     IBMAX = 49 # number of layer boundaries read in on Record 3.3B
@@ -275,6 +335,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     #CO2MX = 380 #ppm (default is 330 ppm)
 
     """ TAPE5 RECORD 3.3B VARIABLES """
+    # This tells the LBLRTM what kind of height grid it should interpolate the T/P/gas concentration data to.
     if ZNBD is None:
         ZNBD = [     0.000  ,  0.100   ,  0.200   ,  0.300   ,  0.400   ,  0.500  ,   0.600 ,    0.700,
                      0.800  ,   0.900  ,   1.000   ,  1.250   ,  1.500  ,   1.750   ,  2.000 ,    2.250,
@@ -285,20 +346,33 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
                     20.000] #This is the array of heights in km the profile will be interpolated to in the LBLRTM
 
     """ TAPE5 RECORD 3.2 VARIABLES """
-    H1 = np.min(ZNBD) # Observer altitude
-    H2 = np.max(ZNBD) # End point altitude 
-    ANGLE = 0 # zenith angle at H1 (degrees) (can be used for satellite computations)
+    # This tells the LBLRTM things about where the "observer" for the radiation is and what angle it is observing at.
+    if upwelling is False:
+        # set parameters for a downwelling calculation
+        H1 = np.min(ZNBD) # Observer altitude
+        H2 = np.max(ZNBD) # End point altitude 
+        ANGLE = 0 # zenith angle at H1 (degrees) (can be used for satellite computations)
+    else:
+        # set parameters for an upwelling calculation
+        H1 = np.max(ZNBD)
+        H2 = 0.00001
+        ANGLE = 180
 
     IBMAX = len(ZNBD)
 
     """ TAPE5 RECORD 3.5 & 3.6 VARIABLES """
+    # This tells the LBLRTM things about the user-supplied profile (if one is given; MODEL == 0)
     HMOD = " User supplied profile"
     JCHARP = "A" #Character representing Units for Pressure (mb)
     JCHART = "B" #Character representing units for temperature (Celsius
     JLONG = ""
+    print "For all other gases (except for WVMR), will be using the US Standard ATM profile."
     JCHAR = " C666666" # This represents the units of the gas concentrations we are specifying (C is g/kg), 6 means use the US Std Atmos.
 
+    print "Now writing lines to the TAPE5."
+
     #Card 1.2
+    print "Writing Card 1.2..."
     # Print out the main flags for the first line of the TAPE5 file
     write(' HI=%1i', IHIRAC)
     write(' F4=%1i', ILBLF4)
@@ -319,6 +393,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     fid.write('\n')
 
     #Card 1.3
+    print "Writing Card 1.3..."
     # This part is the wavenumber range (v1-v2) for the LBLRTM to operate with
     write('%10.3f', V1)
     write('%10.3f', V2)
@@ -335,10 +410,12 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     fid.write('\n')
 
     #Card 1.3.a
+    print "Writing Card 1.3.a..."
     write('%s', HMOL_SCALE)
     fid.write('\n')
 
     #Card 1.3.b - Write out the molecular scaling values
+    print "Writing Card 1.3.b..."
     for i in range(1,len(HMOL_VALS)+1,1):
             write('%15.7e', HMOL_VALS[i-1])
             if i < len(HMOL_VALS) and round(i/8.) == i/8.:
@@ -346,12 +423,14 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     fid.write('\n')
 
     if IEMIT > 0:
-    #Card 1.4
+        print "Writing Card 1.4..."
+        #Card 1.4...this card must be written if the LBLRTM is to do radiance/transmissivity calculations
         write('%10.3f', TBOUND)
-        write('%10.3f', SREMIS[1])
+        write('%10.3f', SREMIS)
         fid.write('          ')
         fid.write('          ')
-        write('%10.3f', SRREFL[1])
+        fid.write('          ')
+        #write('%10.3f', SRREFL[1])
         fid.write('          ')
         fid.write('          ')
         fid.write('    ')
@@ -359,6 +438,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
         fid.write('\n')
 
     #Card 3.1
+    print "Writing Card 3.1..."
     write('%5i', MODEL)
     write('%5i', ITYPE)
     write('%5i', IBMAX)
@@ -378,14 +458,17 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
 
 
     #Card 3.2
+    print "Writing Card 3.2..."
     # This writes the range of heights (h1-h2) in the LBLRTM height grid 
     # and the angle the reciever is at 
     write('%10.3f', H1)
     write('%10.3f', H2)
     write('%10.3f', ANGLE)
+    write('%10.3f', np.max([H1, H2])  # RANGE parameter
     fid.write('\n')
 
     if abs(IBMAX) > 0:
+        print "Writing Card 3.3.b..."
         #Card 3.3B
         # 
         # This writes out the heights the user defined profile will be interpolated to by the LBLRTM
@@ -415,6 +498,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
     # to come from the US standard atmosphere profile (setting 6).
     if MODEL == 0:
         #Card 3.4
+        print "User supplied a profile...writing Card 3.4..."
         # Printing out the number of record in the user-supplied profile
         IMMAX = len(altitude) #Gathering the number of records
 
@@ -477,11 +561,14 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
         fid.write('%10.3e%10.3e%10.3e\\n' % [1.105e-04, 2.783e-09, 5.027e-04])
         fid.write('%10.3f     AAA\\n' % max(altitude))
         fid.write('%10.3e%10.3e%10.3e\\n' % [1.105e-04, 2.783e-09, 5.027e-04])
-
+    """
 
     if ISCAN == 1:
+        print "Writing Card 8.1..."
+        print "WARNING!  This portion of the code hasn't been tested.  Use with caution."
         #Card 8.1
-        if ILS.ILS_use == 0:
+        ILS_use = 0
+        if ILS_use == 0:
             #Defaults
             HWHM = 0.01
             JV1 = V1
@@ -568,7 +655,6 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, HMOL_VALS=[1,380e-6,1,1,1,1,1],
             fid.write('\n')
             fid.write('-1.\n')
             #end of Card 9.1  
-    """
 
     fid.write("%%%")
     print "Done."
