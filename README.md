@@ -14,6 +14,10 @@ PyLBLRTM is a collection of Python scripts to ease the use of the line-by-line r
 
 Type: python setup.py install
 
+### How to use the program:
+
+I'll get around to this.  For now, I hope you can figure it out by yourself.
+
 -
 
 These files were used in October 2013 to run the LBLRTM and analyze the output for AERI files.
