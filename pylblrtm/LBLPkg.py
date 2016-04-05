@@ -233,6 +233,8 @@ class LBLPkg:
             upwelling : switch to compute upwelling vs downwelling radiance
                         False - downwelling
                         True - upwelling (needs sfc_t and sfc_e)
+        """
+        
         wnums = self.base_wnum
         filtered_wnum = self.filterSpectra(wnums, wnums, delta)
         filtered_ods = np.empty((len(self.ods), len(filtered_wnum)))
