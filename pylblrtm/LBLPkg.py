@@ -209,7 +209,30 @@ class LBLPkg:
         return r
 
     def filterRadiance(self, delta=5, method=1, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False, debug=False):
+        """
+            filterRadiance()
             
+            This function performes the radiative transfer calculations using the optical depth
+            files and TAPE7 data from the LBLRTM run.  Instead of convolving the final
+            result using a boxcar filter, this function uses one of three methods to speed up the
+            radiative transfer calculations.
+            
+            Methods 1-3:
+                1.) Convolve the boxcar filter with the optical depth spectra and then perform RT
+                2.) Transform optical depth spectra to transmission, convolve and then perform RT
+                3.) Convert optical depth spectra to layer-to-instrument transmission and then convolve.
+                    Convert back into optical depth space and then perform RT (most accurate).
+            
+            Arguments
+            ---------
+            delta : size of the boxcar filter (cm-1; default = 5)
+            method : choose which method to perform RT (default = 1)
+            zenith_angle: the angle of the calculation (degrees; default = 0)
+            sfc_t : the surface temperature of the Earth (Kelvin; default=None)
+            sfc_e : the surface emissivity (unitless; default=None)
+            upwelling : switch to compute upwelling vs downwelling radiance
+                        False - downwelling
+                        True - upwelling (needs sfc_t and sfc_e)
         wnums = self.base_wnum
         filtered_wnum = self.filterSpectra(wnums, wnums, delta)
         filtered_ods = np.empty((len(self.ods), len(filtered_wnum)))
