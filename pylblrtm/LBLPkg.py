@@ -231,7 +231,34 @@ class LBLPkg:
                 filtered_ods[i,:] = self.t2od(trans_cov)
         elif method == 3:
             # Do the convolution in layer-to-instrument transmission.
-            print "HI"
+            
+            # Convert ODs to transmission
+            trans = self.od2t(self.ods)
+            if upwelling is True:
+                trans = trans[::-1,:] # Reverse the transmissivity 
+            new_l2i_t = np.empty((len(self.ods), len(filtered_wnum)))
+            new_trans = np.empty((len(self.ods), len(filtered_wnum)))
+            for i in xrange(len(new_trans)):
+                # Compute layer-to-instrument transmission.
+                l2i_t = np.prod(trans[:i,:], axis=0)
+                # Convolve that mother.
+                new_l2i_t[i,:] = self.filterSpectra(l2i_t, wnums, delta)  
+            # Set the first level equal to the layer to instruemtn transmissivity
+            new_trans[0,:] = new_l2i_t[0,:]
+            for i in xrange(1, len(new_trans)):
+                # Divide current layer L2I Transmissivity by the layer "below" that.
+                # e.g. (trans_1 * trans_2 * trans_3) / (trans_1 * trans_2) = trans_3
+                new_trans[i,:] = np.divide(new_l2i_t[i,:], new_l2i_t[i-1,:])
+
+            # Convert back to the optical depth space.
+            filtered_ods = self.t2od(new_trans)
+            if upwelling is True:
+                # If we're computing upwelling, reverse the optical depths again
+                filtered_ods = filtered_ods[::-1,:] 
+        else:
+            print "Method not supported."
+            return None, None      
+        
         rad = rxf.rt(filtered_wnum, self.temp, filtered_ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
 
         return filtered_wnum, rad
