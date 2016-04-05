@@ -10,6 +10,10 @@ PyLBLRTM is a collection of Python scripts to ease the use of the line-by-line r
 
 4.) The ability to read in a directory of files output from the LBLRTM script "lblrun".  The data from the LBLRTM are contained within an object called LBLPkg.  From LBLPkg, upwelling and downwelling calculations of radiance can be performed.  LBLPkg does not support including scattering in the radiative transfer calculations.  If you want scattering, this isn't the package for it, bub.
 
+###Installation Instructions
+
+Type: python setup.py install
+
 -
 
 These files were used in October 2013 to run the LBLRTM and analyze the output for AERI files.
