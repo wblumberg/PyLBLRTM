@@ -19,5 +19,5 @@ Type: python setup.py install
 These files were used in October 2013 to run the LBLRTM and analyze the output for AERI files.
 They were written by Greg Blumberg (OU/CIMMS).
 
-
+http://cimss.ssec.wisc.edu/goes/calibration/SRF/sr12aug2002/sounder_avg/
 
