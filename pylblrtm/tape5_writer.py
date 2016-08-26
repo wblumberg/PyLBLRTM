@@ -118,7 +118,8 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         Keyword Arguments
         -----------------
         TAPE5_line : a string describing what the TAPE5 does or is for (for record keeping)
-        
+        IXSECT : use heavy molecule cross sections (0 - no, 1 - yes)
+            
         if MODEL == 0:
             wvmr : an array containing the water vapor mixing ratio profile (g/kg)
             pres : an array containing the pressure profile (mb)
@@ -262,7 +263,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     IOD = 0 # 0 - output the ODs for each layer at the default spectral resolution used by the LBLRTM
             # 
     #XS
-    IXSECT = 0 # 0 - use no cross-sections for the LBLRTM
+    IXSECT = kwargs.get('IXSECT', 0) # 0 - use no cross-sections for the LBLRTM, 1 - use cross-sections
 
     MPTS = 0 # number of optical depth values printed for the beginning and ending of each panel as a result of conv. for prev. layer
     NPTS = 0 # num of values printed for beginning and ending of each panel as a result of merge of current layer w/ prev layers
@@ -551,17 +552,16 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         fid.write('%10.3f' % RAINRT)
         fid.write('%10.3f' % GNDALT)
         fid.write('\n')
-
+    """
     if IXSECT > 0:    #!!! still needs to be developed
         # add in the x-section info
         fid.write('%5i%5i%5i selected x-sections are :\n' % (3, 0, 0))
-        fid.write('CCL4      F11       F12 \\n')
-        fid.write('%5i%5i  \\n' % [2, 0])
-        fid.write('%10.3f     AAA\\n' % min(altitude))
-        fid.write('%10.3e%10.3e%10.3e\\n' % [1.105e-04, 2.783e-09, 5.027e-04])
-        fid.write('%10.3f     AAA\\n' % max(altitude))
-        fid.write('%10.3e%10.3e%10.3e\\n' % [1.105e-04, 2.783e-09, 5.027e-04])
-    """
+        fid.write('CCL4      F11       F12 \n')
+        fid.write('%5i%5i XS 1995 UNEP values\n' % (2, 0))
+        fid.write('%10.3f     AAA\n' % min(altitude))
+        fid.write('%10.3E%10.3E%10.3E\n' % (1.105e-04, 2.783e-04, 5.027e-04))
+        fid.write('%10.3f     AAA\n' % max(altitude))
+        fid.write('%10.3E%10.3E%10.3E\n' % (1.105e-04, 2.783e-04, 5.027e-04))
 
     if ISCAN == 1:
         print "Writing Card 8.1..."
