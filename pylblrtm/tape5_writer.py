@@ -464,7 +464,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     write('%10.3f', H1)
     write('%10.3f', H2)
     write('%10.3f', ANGLE)
-    write('%10.3f', np.max([H1, H2])  # RANGE parameter
+    write('%10.3f', np.max([H1, H2]))  # RANGE parameter
     fid.write('\n')
 
     if abs(IBMAX) > 0:
