@@ -503,7 +503,9 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         #Card 3.4
         print "User supplied a profile...writing Card 3.4..."
         # Printing out the number of record in the user-supplied profile
-        IMMAX = len(altitude) #Gathering the number of records
+        
+        idx = np.where(ZNBD > np.max(altitude))[0]
+        IMMAX = len(idx) + len(altitude) #Gathering the number of records
 
         write('%5.0f', IMMAX)
         write('%s', HMOD) # HMOD is a 24 Character description of the profile
@@ -537,7 +539,37 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
                 if  (j < len(species_vec)) and (round(j/8.) == j/8.):
                     fid.write('\n')
             fid.write('\n')
+        # If the supplied profile doesn't go high enough, fill in the rest of the profile
+        # using the US standard atmosphere.
+        print "Supplied profile doesn't go high enough...filling in the profile with US Std Atmos..."
+        if np.max(altitude) < np.max(ZNBD):
+            idx = np.where(ZNBD > np.max(altitude))[0]
+            for i in idx:
+                #Print out the height, pressure, and temperature values, along with the units string
+                #print "Print"
+                write('%10.3f', ZNBD[i]) # units are km
+                write('%10.3f', 0) # units are mb
+                write('%10.3f', 0) # units are Celsius
+                fid.write('     ')
+                #Here is where we print out the units string
+                write('%s', 6)
+                write('%s', 6)
+                fid.write(' ')
+                write('%s', JLONG)
+                fid.write(' ')
+                write('%s', ' 6666666')
+                fid.write('\n')
 
+                #Print out the values for each atmospheric molecule constituent
+                for j in range(1, len(species_vec)+1):
+                    if species_vec[j-1] == 1:
+                        #Write out the value for atmospheric consituent j at height i
+                        write('%10.3E', 0)
+                    else:
+                        fid.write('          ')
+                    if  (j < len(species_vec)) and (round(j/8.) == j/8.):
+                        fid.write('\n')
+                fid.write('\n')
     """
     if IAERSL > 0:
         #Card 4.1
