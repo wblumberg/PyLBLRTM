@@ -1,7 +1,6 @@
 from netCDF4 import Dataset
 import sys
 import numpy as np
-from pylab import *
 
 """
     SCRIPT NAME:
@@ -114,12 +113,14 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
                 False - computes downwelling radiance (sets H1 - min(ZBND), H2 - max(ZNBD), ANGLE=0)
                 if True, checks for sfc_e and sfc_t in kwargs.
                 if False, sets sfc_e = 1 and sfc_1 = 0.0001
-        
+                 
         Keyword Arguments
         -----------------
         TAPE5_line : a string describing what the TAPE5 does or is for (for record keeping)
         IXSECT : use heavy molecule cross sections (0 - no, 1 - yes)
-            
+        ISCAN : convolve result with AERI ILS and output to TAPE27 (rad) and TAPE28 (trans)
+                0: no, 3: yes 
+             
         if MODEL == 0:
             wvmr : an array containing the water vapor mixing ratio profile (g/kg)
             pres : an array containing the pressure profile (mb)
@@ -240,10 +241,10 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     IEMIT = IEMIT # 0 - perform optical depth calculations only
                   # 1 - radiance and transmittance (W / cm2 sr-1 cm-1) 
     #SC
-    ISCAN = 0 # 0 - No scanning function
-              # 1 - apply scanning function
-              # 2 - apply interpolation procedure to results
-              # 3 - apply FFT scan
+    ISCAN = kwargs.get('ISCAN', 0) # 0 - No scanning function
+                                   # 1 - apply scanning function
+                                   # 2 - apply interpolation procedure to results
+                                   # 3 - apply FFT scan
     #IF
     IFILTR = 0 # 0 - no, 1 - yes
     #PL
@@ -276,7 +277,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     DVSET = 0 # THIS SELECTION MAY BE IMPORTANT FOR WHEN WE NEED TO GENERATE THE OPTICAL DEPTH DV CONSISTENT ACROSS ALL HEIGHTS
     ALFALO = 0.04 #DEFAULT = 0.04
     AVMASS = 36 # DEFAULT = 36
-    DPTMIN = 0.0002
+    DPTMIN = -1
     DPTFAC = 0.001
     ILNFLG = 0 # DEFAULT = 0
     DVOUT = 0 #SELECTED DV GRID FOR THE OPTICAL DEPTH 'MONOCHROMATIC' OUTPUT SPACING (MUST BE LESS THAN OR EQ TO DEFAULT SPACING OF DVSET)
@@ -345,7 +346,8 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
                      9.500  ,  10.000  ,  10.500  ,  11.000  ,  11.500 ,   12.000  ,  12.500  ,  13.000,
                     13.500  ,  14.000  ,  14.500   , 15.000   , 16.000  ,  17.000  ,  18.000  ,  19.000,
                     20.000] #This is the array of heights in km the profile will be interpolated to in the LBLRTM
-
+        ZNBD = np.concatenate((np.arange(11)*0.1,np.arange(10)*0.25+1.25,\
+                          np.arange(23)*0.5+4.0,np.arange(5)+16, np.arange(10)*2+22, np.arange(8)*4+42))
     """ TAPE5 RECORD 3.2 VARIABLES """
     # This tells the LBLRTM things about where the "observer" for the radiation is and what angle it is observing at.
     if upwelling is False:
@@ -555,6 +557,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     """
     if IXSECT > 0:    #!!! still needs to be developed
         # add in the x-section info
+        # Got these x-section info from DDT's rundecker.pro on 8/26/2016
         fid.write('%5i%5i%5i selected x-sections are :\n' % (3, 0, 0))
         fid.write('CCL4      F11       F12 \n')
         fid.write('%5i%5i XS 1995 UNEP values\n' % (2, 0))
@@ -562,81 +565,106 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         fid.write('%10.3E%10.3E%10.3E\n' % (1.105e-04, 2.783e-04, 5.027e-04))
         fid.write('%10.3f     AAA\n' % max(altitude))
         fid.write('%10.3E%10.3E%10.3E\n' % (1.105e-04, 2.783e-04, 5.027e-04))
+    ISCAN=3
 
-    if ISCAN == 1:
-        print "Writing Card 8.1..."
+    opd = 1.03702766 # AERI
+    delv = 1./(2*opd)
+    npts = long(10000/delv+1)
+    varray = np.arange(npts, dtype=int)*delv + delv
+    idx1 = np.where(varray > V1 + 50)[0]
+    idx2 = np.where(varray > V2 - 50)[0]
+
+    #ISCAN = 1; SCANFN, ISCAN = 2; INTRPL, ISCAN = 3; FFTSCN
+    # Currently only set to do FFTSCN for AERI
+    if ISCAN == 3:  # 3 means use FFT
+        print "Writing Card 10.1..."
         print "WARNING!  This portion of the code hasn't been tested.  Use with caution."
         #Card 8.1
-        ILS_use = 0
-        if ILS_use == 0:
-            #Defaults
-            HWHM = 0.01
-            JV1 = V1
-            JV2 = V2
-            JEMIT = 1
-            JFN = 0
-            JVAR = 0
-            SAMPL = 0
-        else:
-            HWHM = ILS.HWHM
-            JV1 = ILS.V1
-            JV2 = ILS.V2
-            if get_flag(Flag_Vec, Flag_List, 'Rad_or_Trans') == 0:
-                JEMIT = 0
-            #JEMIT = 1;
-            JFN = ILS.JFN
-            JVAR = 0
-            SAMPL = 0
-        IUNIT = 12
-        IFILST = 1
-        NIFILS = 1
-        JUNIT = 11
-
-        fid.write('%10.6f' % HWHM)
-        fid.write('%10.5f' % JV1)
-        fid.write('%10.5f' % JV2)
-        fid.write('   %2i' % JEMIT)
-        fid.write('   %2i' % JFN)
-        fid.write('   %2i' % JVAR)
-        fid.write('%10.4f' % SAMPL)
-        fid.write('   ')    #3X
-        fid.write('%2i' % IUNIT)
-        fid.write('   ')    #3X
-        fid.write('%2i' % IFILST)
-        fid.write('   ')    #3X
-        fid.write('%2i' % NIFILS)
-        fid.write('   ')    #3X
-        fid.write('%2i' % JUNIT)
-        fid.write('\n')
+        #Defaults to using AERI ILS characteristics
+        #HWHM = 1.03702766
+        #JV1 = 450.32550
+        #JV2 = 1750.19440
+        #JEMIT = 1
+        #JFNin = 1 # 1-triangle scanning function, 0-boxcar scanning function
+        #MRATin = -4 # no prescanning boxcaring is performed 
+        #DVOUT = 0.482
+        #IUNIT = 12 # TAPE12 to be scanned
+        #IFILST = 1
+        #NIFILS = 1
+        #JUNIT = 13 # Output file for the scanned results
+        # Will write out to TAPE13 (radiance) and TAPE14 (transmittance)
+        # with the AERI ILS convolved. Settings taken from DDT rundecker.pro
+        string = '%10.8f%10.5f' % (opd, varray[idx1[0]])
+        string += '%10.5f' % (varray[idx2[0]])
+        string += '    1   -4     '
+        string += '%10.8f' % (delv)
+        string += '   12    1    1   13\n'
+        fid.write(string)
+        string = '%10.8f%10.5f' % (opd, varray[idx1[0]])
+        string += '%10.5f' % (varray[idx2[0]])
+        string += '    0   -4     '
+        string += '%10.8f' % (delv)
+        string += '   12    1    1   14\n'
+        fid.write(string)
+         
+        #fid.write('%10.3f' % HWHM)
+        #fid.write('%10.3f' % JV1)
+        #fid.write('%10.3f' % JV2)
+        #fid.write('%5i' % JEMIT)
+        #fid.write('%5i' % JFNin)
+        #fid.write('%5i' % MRATin)
+        #fid.write('%10.3f' % DVOUT)
+        #fid.write('%5i' % IUNIT)
+        #fid.write('%5i' % IFILST)
+        #fid.write('%5i' % NIFILS)
+        #fid.write('%5i' % JUNIT)
+        # Neglecting the IVX and NOFIX
+        #fid.write('\n')
         fid.write('-1.\n')
         #end of Card 8.1
 
         blah = 0
-        if blah == 1:
+        # This makes the TAPE27 and TAPE28
+        # Settings taken from DDT rundecker.pro
+        if ISCAN > 0 and IEMIT == 1:
             #Reinterpolate scanned data to regular coordinate system
             #Card 1.1
-            fid.write('$ Interpolation of scanned results\\n')
+            fid.write('$ Transfer to ASCII plotting data (TAPES 27 and 28)\n')
 
             #Card 1.2
-            fid.write('%5i' % 0)        #IHIRAC
-            fid.write('%5i' % 0)        #ILBLF4
-            fid.write('%5i' % 0)        #ICNTNM
-            fid.write('%5i' % 0)        #IAERSL
-            fid.write('%5i' % 0)        #IEMIT
-            fid.write('%5i' % 2)        #ISCAN
-            fid.write('%5i' % 0)        #IFILTR
-            fid.write('%5i' % 0)        #IPLOT
-            fid.write('%5i' % 0)        #ITEST
-            fid.write('%5i' % 0)        #IATM
-            fid.write('%5i' % 0)        #IMRG
-            fid.write('%5i' % 0)        #ILAS
-            fid.write('%5i' % 0)        #IOD
-            fid.write('%5i' % 0)        #IXSECT
+            fid.write(' HI=%1i' % 0)        #IHIRAC
+            fid.write(' F4=%1i' % 0)        #ILBLF4
+            fid.write(' CN=%1i' % 0)        #ICNTNM
+            fid.write(' AE=%1i' % 0)        #IAERSL
+            fid.write(' EM=%1i' % 0)        #IEMIT
+            fid.write(' SC=%1i' % 0)        #ISCAN
+            fid.write(' FI=%1i' % 0)        #IFILTR
+            fid.write(' PL=%1i' % 1)        #IPLOT
+            fid.write(' TS=%1i' % 0)        #ITEST
+            fid.write(' AM=%1i' % 0)        #IATM
+            fid.write(' MG=%1i' % 0)        #IMRG
+            fid.write(' LA=%1i' % 0)        #ILAS
+            fid.write(' MS=%1i' % 0)        #IOD
+            fid.write(' XS=%1i' % 0)        #IXSECT
             fid.write('%5i' % 0)        #MPTS
             fid.write('%5i' % 0)        #NPTS
             fid.write('\n')
+            fid.write("# Plot title not used\n")
 
-            #Card 9.1
+            #Card 9.1 ..each card listed here will interpert TAPE13 and TAPE14 (from scanning)
+            # Convert TAPE13
+            string = '%10.5f%10.5f' % (varray[idx1[0]], varray[idx2[0]]) # V1 to V2
+            string += '   10.2000  100.0000    5    0   13    0     1.000 0  0    0\n'
+            string += '    0.0000    1.2000    7.0200    0.2000    4    0    1    1    0    0 0    3 27\n'
+            # Convert TAPE14
+            string += '%10.5f%10.5f' % (varray[idx1[0]], varray[idx2[0]]) # V1 to V2
+            string += '   10.2000  100.0000    5    0   14    0     1.000 0  0    0\n'
+            string += '    0.0000    1.2000    7.0200    0.2000    4    0    1    0    0    0 0    3 28\n'
+            
+            fid.write(string)
+        
+            """
+            # Commented out to ensure the correct AERI stuff from rundecker.
             fid.write('%10.6f' % HWHM)
             fid.write('%10.5f' % JV1)
             fid.write('%10.5f' % JV2)
@@ -653,8 +681,9 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
             fid.write('   ')        #3X
             fid.write('%2i' % 11)        #JUNIT
             fid.write('\n')
+            """
             fid.write('-1.\n')
             #end of Card 9.1  
-
+            
     fid.write("%%%")
     print "Done."
