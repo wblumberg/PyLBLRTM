@@ -273,6 +273,9 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     # This describes the portion of the EM spectrum we want to look at.
     V1 = V1 # Beginning wavenumber for the spectra
     V2 = V2 # Ending wavenumber for the spectra
+    if V1> V2:
+        print 'INVALID WAVELENGTH RANGE.'
+        return
     SAMPLE = 4
     DVSET = 0 # THIS SELECTION MAY BE IMPORTANT FOR WHEN WE NEED TO GENERATE THE OPTICAL DEPTH DV CONSISTENT ACROSS ALL HEIGHTS
     ALFALO = 0.04 #DEFAULT = 0.04
