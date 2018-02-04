@@ -48,6 +48,12 @@ def planck(wnum, temp):
     r = (c1 * np.power(wnum,3)) / ( np.exp( c2*wnum/temp) - 1.)
     return r
 
+def brightness_temperature(rad, wnum):
+    c1 = 1.1910427e-5 #mW/m2.sr.cm-1
+    c2 = 1.4387752 #K/cm
+    temp = (c2 * wnum) / np.log( ((c1 * np.power(wnum,3))/rad) + 1) 
+    return temp
+
 def rt(wnum, temp, opd, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False, debug=False):
     opd = np.asarray(opd, dtype=np.float64) * (1./np.cos(np.radians(zenith_angle)))
     wnum = np.asarray(wnum, dtype=np.float64)

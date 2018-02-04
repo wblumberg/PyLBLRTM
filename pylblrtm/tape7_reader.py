@@ -37,8 +37,9 @@ def readTape(filename):
     h2 = float(line[52:60])
     ang = float(line[65:65+8])
     lens = long(line[78:80])
-    #print i_form, n_layers, n_mols
-    #print secnt0, h1, h2, ang, lens
+    print i_form, n_layers, n_mols
+    print secnt0, h1, h2, ang, lens
+    print line
 
     #Loop over layers 
 
@@ -46,7 +47,7 @@ def readTape(filename):
     temperature = np.empty(n_layers)
 
     moldens = np.empty((n_mols, n_layers))
-    moldens_temp = np.empty(n_mols + 1 > 8)
+    #moldens_temp = np.empty(n_mols + 1 > 8)
     if n_mols <= 7:
         moldens_loc = np.arange(n_mols)
     else:

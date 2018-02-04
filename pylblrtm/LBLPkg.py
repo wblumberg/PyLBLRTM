@@ -92,7 +92,8 @@ class LBLPkg:
         self.temp = t #Temperature profile
         self.z = z #height profile
         self.q = 3 #wv mixing ratio profile interpolated from the LBLRTM TAPE7 (not implemented yet, don't know how to do this).
-        self.base_wnum = wnum #base wnum for the ODs 
+        self.base_wnum = wnum #base wnum for the ODs in cm-1
+        self.base_wlen = (1./wnum)* 10000 # Returns in micrometers
         #self.aeri_wnums = np.load('/home/greg.blumberg/python_pkgs/aeri_wnumgrid.npy')
     
     def getLBLdir(self):
@@ -326,3 +327,18 @@ class LBLPkg:
         print integrated.shape 
         #print integrate.quad(lambda x: np.interp(x, self.base_wnum, integrated), v1, v2)[0] * 0.001
 
+    def addCloud_computeRadiance(self, cloud_height=2, cloud_tau=0, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False):
+        wnums = self.base_wnum
+        temp = self.temp
+        ods = self.ods.copy()
+        z = self.z
+        if np.max(z) < cloud_height or np.min(z) > cloud_height:
+            print "Can't add a cloud at the specified height."
+            print "Need to use a cloud between: ", np.min(z), 'and', np.max(z), 'km'
+            return 0,0
+        else:
+            idx = np.argmin(np.abs(z - cloud_height))
+        ods[idx,:] = ods[idx,:] + cloud_tau
+        print "The temperature of the cloud you're adding is:", self.temp[idx] 
+        rad = rxf.rt(wnums, temp, ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
+        return wnums, rad

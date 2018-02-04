@@ -52,8 +52,7 @@ def rh2w(rh, pres, temp):
     return mxr, rh
 
 def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,1,1,1,1], upwelling=False,**kwargs):
-    """
-        makeFile()
+    """makeFile()
 
         This function creates an LBLRTM TAPE5 input file using the arguments passed to it.
         This TAPE5 writer only recognizes the contributions from the first 7 molecules of the 
