@@ -279,11 +279,11 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         IMRG = 0 # This will ensure that the TAPE10 and TAPE12 will have something in it.
     elif IEMIT == 3:
         IMRG = 40
-    IMRG = 40
+    
     #LA
     ILAS = 0 # Flag for laser options
     #MS
-    IOD = 3 # 0 - output the ODs for each layer at the default spectral resolution used by the LBLRTM
+    IOD = 0 # 0 - output the ODs for each layer at the default spectral resolution used by the LBLRTM
             # 
     #XS
     IXSECT = kwargs.get('IXSECT', 0) # 0 - use no cross-sections for the LBLRTM, 1 - use cross-sections
