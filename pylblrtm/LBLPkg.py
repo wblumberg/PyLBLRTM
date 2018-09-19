@@ -1,12 +1,12 @@
 import numpy as np
 import glob
-import radxfer as rxf
-import convolve2aeri as c2a
+from . import radxfer as rxf
+from . import convolve2aeri as c2a
 import sys
-import panel_file
+from . import panel_file
 sys.path.append('../')
-import apodizer
-import tape7_reader as t7r
+from . import apodizer
+from . import tape7_reader as t7r
 import subprocess
 from scipy import convolve
 
@@ -53,13 +53,13 @@ def read_and_interpODs(OD_dir):
 
     files = np.sort(glob.glob(OD_dir + '/ODdeflt_*'))[::-1]
 
-    print "Reading in optical depth files..."
+    print("Reading in optical depth files...")
     #This code loads in the highest OD layer into memory, the wnum grid
     #for this layer becomes the standard wavenumber grid for all other layers
     if switch == 0:
         fd = panel_file.panel_file(files[0], do_load_data=True)
         base_wnum = fd.v
-        print "\tReading in:",files[0]
+        print("\tReading in:",files[0])
         ods = np.empty((len(files), len(base_wnum)))
         ods[len(files)-1] = fd.data1
         begin_idx = 1
@@ -72,7 +72,7 @@ def read_and_interpODs(OD_dir):
     #This code loads in the rest of the OD layers and interpolated them to the
     #wavenumber grid that is of the highest layer
     for f in np.arange(begin_idx,len(files),1):
-        print "\tReading in:",files[f]
+        print("\tReading in:",files[f])
         fd = panel_file.panel_file(files[f], do_load_data=True)
         ods[len(files)-1-f] = np.interp(base_wnum, fd.v, fd.data1)
     
@@ -85,9 +85,9 @@ class LBLPkg:
     def __init__(self, lblOUTdir):
         self.lbl_datadir = lblOUTdir
         ods, wnum = read_and_interpODs(lblOUTdir)
-        print "Reading in TAPE7..."
+        print("Reading in TAPE7...")
         z, t = t7r.readTape(lblOUTdir + '/TAPE7')
-        print "LBLOUT files loaded."
+        print("LBLOUT files loaded.")
         self.ods = ods #Read in ODs here
         self.temp = t #Temperature profile
         self.z = z #height profile
@@ -103,7 +103,7 @@ class LBLPkg:
     def trueJacobian(self, pert):
         # Calculates the Jacobian  
         wnum, fx = self.radianceTrue()
-        print self.getLBLdir() + "../OUT_TPERT/TAPE7"
+        print(self.getLBLdir() + "../OUT_TPERT/TAPE7")
         try:
             reg_z, pert_temp = t7r.readTape(self.getLBLdir()+"../OUT_TPERT/TAPE7")
             # The below is commented because my TAPE7 reader doesn't read in the interpolated WVMR grid yet.
@@ -116,7 +116,7 @@ class LBLPkg:
         levels = np.arange(0, len(reg_z))
         for t in range(len(levels)):
             i = levels[t]
-            print "Modifying profile at height: " + str(reg_z[i]) + ' km'
+            print("Modifying profile at height: " + str(reg_z[i]) + ' km')
             temporary_ods = 1.*self.ods
             temp_temp = 1.*self.temp
             temp_temp[i] = pert_temp[i]
@@ -124,12 +124,12 @@ class LBLPkg:
             if i == 0:
                 fd = panel_file.panel_file(self.lbl_datadir + '/ODdeflt_001', do_load_data=True)
                 temporary_ods[0] = np.interp(self.base_wnum, fd.v, fd.data1)
-                print "Bottommost layer, changing only the bottommost OD layer and temp[0]."
+                print("Bottommost layer, changing only the bottommost OD layer and temp[0].")
             elif i+1 == len(self.temp):
-                print self.lbl_datadir + '/ODdeflt_'  + str((3-len(str(i+1))) * '0' + str(i))
+                print(self.lbl_datadir + '/ODdeflt_'  + str((3-len(str(i+1))) * '0' + str(i)))
                 fd = panel_file.panel_file(self.lbl_datadir + '/ODdeflt_'  + str((3-len(str(i+1))) * '0' + str(i)), do_load_data=True)
                 temporary_ods[len(self.temp)-1-1] = np.interp(self.base_wnum, fd.v, fd.data1)
-                print "Top of the atmosphere: changing only the topmost OD layer and temp."
+                print("Top of the atmosphere: changing only the topmost OD layer and temp.")
             else:
             #Replace the optical depths for the layer below level i (makes it layer i).
                 fdbo = panel_file.panel_file(self.lbl_datadir + '/ODdeflt_' + str((3-len(str(i))) * '0' + str(i)), do_load_data=True)
@@ -140,9 +140,9 @@ class LBLPkg:
 		    #If the AERI observation suggests clouds are being viewed cloud optical depths may be added in here.
 
 		    #Calculate the true way of doing the AERI Radiances
-            print "Computing perturbed AERI radiance w/o apodization."
+            print("Computing perturbed AERI radiance w/o apodization.")
             true_aeri_wnum, true_fxp = self.radianceTrue(self.base_wnum, temp_temp, temporary_ods)
-            print "Calculating Jacobian for height: ", str(reg_z[i])
+            print("Calculating Jacobian for height: ", str(reg_z[i]))
             aeri_jacobian[i] = computeJacobian(fx, true_fxp, pert)
             true_fxprime[i] = true_fxp
 
@@ -243,16 +243,16 @@ class LBLPkg:
             # Do convolution in OD space.
             for i in range(len(self.ods)):
                 if debug is True:
-                    print "Convolving ODs @ LEVEL:", i
-                    print "Max:", np.max(self.ods[i,:]), "Min:", np.min(self.ods[i,:])
+                    print("Convolving ODs @ LEVEL:", i)
+                    print("Max:", np.max(self.ods[i,:]), "Min:", np.min(self.ods[i,:]))
                 filtered_ods[i,:] = self.filterSpectra(self.ods[i,:], wnums, delta)
         elif method == 2:
             # Do convolution in transmission space.
             for i in range(len(self.ods)):
                 trans = self.od2t(self.ods[i,:])
                 if debug is True:
-                    print "Convolving transmission @ level:",i
-                    print "Max:", np.max(trans), "Min:", np.min(trans)
+                    print("Convolving transmission @ level:",i)
+                    print("Max:", np.max(trans), "Min:", np.min(trans))
                 trans_cov = self.filterSpectra(trans, wnums, delta)
                 filtered_ods[i,:] = self.t2od(trans_cov)
         elif method == 3:
@@ -264,14 +264,14 @@ class LBLPkg:
                 trans = trans[::-1,:] # Reverse the transmissivity 
             new_l2i_t = np.empty((len(self.ods), len(filtered_wnum)))
             new_trans = np.empty((len(self.ods), len(filtered_wnum)))
-            for i in xrange(len(new_trans)):
+            for i in range(len(new_trans)):
                 # Compute layer-to-instrument transmission.
                 l2i_t = np.prod(trans[:i,:], axis=0)
                 # Convolve that mother.
                 new_l2i_t[i,:] = self.filterSpectra(l2i_t, wnums, delta)  
             # Set the first level equal to the layer to instruemtn transmissivity
             new_trans[0,:] = new_l2i_t[0,:]
-            for i in xrange(1, len(new_trans)):
+            for i in range(1, len(new_trans)):
                 # Divide current layer L2I Transmissivity by the layer "below" that.
                 # e.g. (trans_1 * trans_2 * trans_3) / (trans_1 * trans_2) = trans_3
                 new_trans[i,:] = np.divide(new_l2i_t[i,:], new_l2i_t[i-1,:])
@@ -282,7 +282,7 @@ class LBLPkg:
                 # If we're computing upwelling, reverse the optical depths again
                 filtered_ods = filtered_ods[::-1,:] 
         else:
-            print "Method not supported."
+            print("Method not supported.")
             return None, None      
         
         rad = rxf.rt(filtered_wnum, self.temp, filtered_ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
@@ -305,7 +305,7 @@ class LBLPkg:
         #
         # integrate I_v(theta) sin(theta) cos(theta) d(theta) d(phi) d(wavenumber)
             #wnum = self.base_wnum
-        print "Upwelling?:", upwelling
+        print("Upwelling?:", upwelling)
         range_of_thetas = np.arange(0,90 + dtheta,dtheta)
         radiances = np.empty((len(range_of_thetas), len(self.base_wnum)))
         for i in range(len(range_of_thetas)):
@@ -317,14 +317,14 @@ class LBLPkg:
             radiances[i,:] = self.monoRadiance(theta, sfc_t, sfc_e, upwelling)[1] * np.sin(np.radians(theta)) * np.cos(np.radians(theta))
             #plot(self.base_wnum, radiances[i,:])
         show()
-        print radiances.shape
+        print(radiances.shape)
         # After integrating over theta
         integrated = np.trapz(radiances, range_of_thetas, dx=dtheta, axis=0)
-        print integrated
+        print(integrated)
         # After integrating over phi
         integrated = integrated * (2*np.pi) 
-        print integrated 
-        print integrated.shape 
+        print(integrated) 
+        print(integrated.shape) 
         #print integrate.quad(lambda x: np.interp(x, self.base_wnum, integrated), v1, v2)[0] * 0.001
 
     def addCloud_computeRadiance(self, cloud_height=2, cloud_tau=0, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False):
@@ -333,12 +333,12 @@ class LBLPkg:
         ods = self.ods.copy()
         z = self.z
         if np.max(z) < cloud_height or np.min(z) > cloud_height:
-            print "Can't add a cloud at the specified height."
-            print "Need to use a cloud between: ", np.min(z), 'and', np.max(z), 'km'
+            print("Can't add a cloud at the specified height.")
+            print("Need to use a cloud between: ", np.min(z), 'and', np.max(z), 'km')
             return 0,0
         else:
             idx = np.argmin(np.abs(z - cloud_height))
         ods[idx,:] = ods[idx,:] + cloud_tau
-        print "The temperature of the cloud you're adding is:", self.temp[idx] 
+        print("The temperature of the cloud you're adding is:", self.temp[idx]) 
         rad = rxf.rt(wnums, temp, ods, zenith_angle=zenith_angle, sfc_t=sfc_t, sfc_e=sfc_e, upwelling=upwelling)
         return wnums, rad

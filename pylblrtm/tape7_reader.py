@@ -29,17 +29,17 @@ def readTape(filename):
     line = f.readline()
     line = f.readline()
 
-    i_form = long(line[0:2])
-    n_layers = long(line[2:5])
-    n_mols = long(line[8:10])
+    i_form = int(line[0:2])
+    n_layers = int(line[2:5])
+    n_mols = int(line[8:10])
     secnt0 = float(line[10:20])
     h1 = float(line[40:48])
     h2 = float(line[52:60])
     ang = float(line[65:65+8])
-    lens = long(line[78:80])
-    print i_form, n_layers, n_mols
-    print secnt0, h1, h2, ang, lens
-    print line
+    lens = int(line[78:80])
+    print(i_form, n_layers, n_mols)
+    print(secnt0, h1, h2, ang, lens)
+    print(line)
 
     #Loop over layers 
 

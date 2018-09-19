@@ -83,7 +83,7 @@ class panel_file:
         self._f = open(self.filename, 'rb')
         try:
             self._fread_hdr()
-        except IOError, theError:
+        except IOError as theError:
             self._f.close()
             raise theError
 
@@ -92,7 +92,7 @@ class panel_file:
 
         try:
             self._check_panel_format()
-        except IOError, theError:
+        except IOError as theError:
             self._f.close()
             raise theError
 
@@ -491,7 +491,7 @@ class panel_file_hdr:
                                            self.mol_col_dens[n])
 
         lblrtm_flag_str = 'lblrtm_flag:\n'
-        for item in self.lblrtm_flag.iteritems():
+        for item in self.lblrtm_flag.items():
             lblrtm_flag_str = lblrtm_flag_str + \
                 '    {0:12s}: {1:g}\n'.format(item[0], item[1])
 

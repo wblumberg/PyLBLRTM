@@ -1,7 +1,7 @@
 #import scipy.signal
 import numpy as np
 import sys
-import panel_file
+from . import panel_file
 
 """
     SCRIPT:
@@ -37,7 +37,7 @@ def convolve_to_aeri(wnum, spectra):
 
     #Check for equal sizes in the wnum and spectra arrays
     if len(wnum) != len(spectra):
-        print "ERROR: wnum and spectra are not the same number of elements."
+        print("ERROR: wnum and spectra are not the same number of elements.")
         sys.exit()
 
     #AERI wavenumber grid spacing
@@ -152,7 +152,7 @@ def convolve_to_aeri(wnum, spectra):
     else:
         #If this happens, warn the user and still use sfac = 16
         sfac = 16
-        print "WARNING in convolve2aeri: Unanticipated problem in computing new_x, setting sfac = 16"
+        print("WARNING in convolve2aeri: Unanticipated problem in computing new_x, setting sfac = 16")
 
     new_aeri_dv = AERI_dv / sfac
     max_v = np.max(new_x)
@@ -202,7 +202,7 @@ def convolve_to_aeri(wnum, spectra):
     idxs = np.where((minv + tapersize <= final_aeri_wnum) & (final_aeri_wnum <= maxv-tapersize))[0]
 
     if len(idxs) <= 0 :
-        print "ERROR"
+        print("ERROR")
         sys.exit()
     else:
         final_aeri_wnum = final_aeri_wnum[idxs]

@@ -66,7 +66,7 @@ def rt(wnum, temp, opd, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False,
     else:
         sfce = sfc_e
         if sfce < 0 or sfce > 1:
-            print "Error: the surface emissivity is outside of [0,1]"
+            print("Error: the surface emissivity is outside of [0,1]")
             sys.exit()        
         if sfc_t is None:
             # if no surface temperature is given, use the temperature of the lowest level
@@ -99,16 +99,16 @@ def rt(wnum, temp, opd, zenith_angle=0, sfc_t=None, sfc_e=None, upwelling=False,
         b_avg = (planck(wnum, temp[k]) + planck(wnum, temp[k+1]))/2. # b_close and b_far
         b_eff = b_close + 2*(b_avg - b_close)*((1./opd[k,:]) - (trans/(1.-trans)))
         if debug == True:
-            print "Temperature of top and bottom layer:", temp[k], temp[k+1]
-            print "Planck top and bottom layer:", planck(wnum, temp[k]), planck(wnum, temp[k+1])
-            print "b_avg:", b_avg
-            print "Temperature of top and bottom layer:", temp[k], temp[k+1]
-            print "b_close:", b_close 
-            print "b_avg:", b_avg
-            print "b_eff:", b_eff
-            print "Optical Depth of Current Layer:", opd[k,:]
-            print "Terms of the RT for this layer:", (1-np.exp(-1.*opd[k,:])), b_avg, layer_to_inst
-            print "Calculation:", (1-np.exp(-1.*opd[k,:]))*b_eff*layer_to_inst 
+            print("Temperature of top and bottom layer:", temp[k], temp[k+1])
+            print("Planck top and bottom layer:", planck(wnum, temp[k]), planck(wnum, temp[k+1]))
+            print("b_avg:", b_avg)
+            print("Temperature of top and bottom layer:", temp[k], temp[k+1])
+            print("b_close:", b_close) 
+            print("b_avg:", b_avg)
+            print("b_eff:", b_eff)
+            print("Optical Depth of Current Layer:", opd[k,:])
+            print("Terms of the RT for this layer:", (1-np.exp(-1.*opd[k,:])), b_avg, layer_to_inst)
+            print("Calculation:", (1-np.exp(-1.*opd[k,:]))*b_eff*layer_to_inst) 
         rad = rad*trans + (1.-trans) * b_eff
     return rad
 
@@ -125,14 +125,14 @@ if __name__ == '__main__':
     wnum = [1200]
     #wnum = [800]
 
-    print "TEMP:", temp
-    print "Optical Depths:", ods
-    print "WNUM:", wnum
+    print("TEMP:", temp)
+    print("Optical Depths:", ods)
+    print("WNUM:", wnum)
     upw_rad = rt(wnum, temp, ods, zenith_angle=60, sfc_t=310, sfc_e=0.9, upwelling=True)
-    print "Upwelling Radiance:", upw_rad
-    print
+    print("Upwelling Radiance:", upw_rad)
+    print()
     dwn_rad = rt(wnum, temp, ods, zenith_angle=60) 
-    print "Downwelling Radiance:", dwn_rad
+    print("Downwelling Radiance:", dwn_rad)
 
   
 

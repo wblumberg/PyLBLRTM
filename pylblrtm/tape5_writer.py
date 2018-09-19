@@ -121,10 +121,22 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
                 0: no, 3: yes 
              
         if MODEL == 0:
-            wvmr : an array containing the water vapor mixing ratio profile (g/kg)
-            pres : an array containing the pressure profile (mb)
-            tmpc : an array containing the temperature profile (C)
-            hght : an array containing the height profile (km)
+            profiles : a dictionary containing the vertical profiles of the atmosphere w/ different gas concentrations,
+                       pressure, height, and temperature
+            DICTIONARY KEYWORDS FOR profiles variable:
+                wvmr : an array containing the water vapor mixing ratio profile (g/kg)
+                pres : an array containing the pressure profile (mb)
+                tmpc : an array containing the temperature profile (C)
+                hght : an array containing the height profile (km)
+                ozone : an array containing the ozone profile (ppmv)
+                co2 : an array containing the carbon dioxide profile (ppmv)
+                n2o : an array containing the nitrous oxide profile (ppmv)
+                co : an array containing the carbon monoxide profile (ppmv)
+                ch4 : an array containing the methane profile (ppmv)
+                o2 : an array containing the oxygen profile (ppmv)
+                model_default : an integer specifying the default profile to use in place of 
+                                gas profiles not specified. 
+            KEYWORDS NOT CONTAINED IN THE DICTIONARY ARE SET TO THE DEFAULT PROFILE
 
         if IEMIT != 0:
             # must be specified if an upwelling calculation is done
@@ -136,22 +148,30 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
             ILS : an instrument lineshape object to apply to the spectrum (Not implemented yet)
     """
 
-    print "This TAPE5 will be saved in: ", out_file
+    print(("This TAPE5 will be saved in: ", out_file))
 
     species_vec = np.ones(7,)
 
     # Initialize the full_atm array to
     if MODEL == 0:
-        if 'wvmr' not in kwargs or 'tmpc' not in kwargs or 'pres' not in kwargs or 'hght' not in kwargs:
-            print "MODEL == 0, but argument is missing kwargs to specify the user-specified profile."
-            print "TAPE5 not created."
+        if 'profiles' not in kwargs:
+            print("No variable called profiles included in the arguments passed to this function.")
+            print("TAPE5 not created")
+            return
+        profiles = kwargs.get('profiles')
+        
+        if 'wvmr' not in list(profiles.keys()) or 'tmpc' not in list(profiles.keys()) or 'pres' not in list(profiles.keys()) or 'hght' not in list(profiles.keys()):
+            print("MODEL == 0, but profiles does not contain essential profile data (height, pressure, temperature, water vapor).")
+            print("TAPE5 not created.")
             return
 
-        temperature = kwargs.get('tmpc')
+        temperature = profiles['tmpc']
         full_atm = np.zeros((temperature.shape[0], 3+7))
-        full_atm[:,3] = kwargs.get('wvmr') 
-        pressure = kwargs.get('pres')
-        altitude = kwargs.get('hght')
+        for i, trace_gas in enumerate(['wvmr', 'co2', 'o3', 'n2o', 'co', 'ch4', 'o2']):
+            if trace_gas in list(profiles.keys()): 
+                full_atm[:,i+3] = profiles[trace_gas]
+        pressure = profiles['pres']
+        altitude = profiles['hght']
 
     # Open the up the file to write to.
     fid = open(out_file, 'w')
@@ -255,12 +275,15 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     #MG
     if IEMIT == 0: # When we want to look at the ODs and not the radiances/transmission.
         IMRG = 1 # 1 - This will output the optical depths for each layer in their own files.
-    else:
+    elif IEMIT == 1:
         IMRG = 0 # This will ensure that the TAPE10 and TAPE12 will have something in it.
+    elif IEMIT == 3:
+        IMRG = 40
+    IMRG = 40
     #LA
     ILAS = 0 # Flag for laser options
     #MS
-    IOD = 0 # 0 - output the ODs for each layer at the default spectral resolution used by the LBLRTM
+    IOD = 3 # 0 - output the ODs for each layer at the default spectral resolution used by the LBLRTM
             # 
     #XS
     IXSECT = kwargs.get('IXSECT', 0) # 0 - use no cross-sections for the LBLRTM, 1 - use cross-sections
@@ -273,7 +296,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     V1 = V1 # Beginning wavenumber for the spectra
     V2 = V2 # Ending wavenumber for the spectra
     if V1> V2:
-        print 'INVALID WAVELENGTH RANGE.'
+        print('INVALID WAVELENGTH RANGE.')
         return
     SAMPLE = 4
     DVSET = 0 # THIS SELECTION MAY BE IMPORTANT FOR WHEN WE NEED TO GENERATE THE OPTICAL DEPTH DV CONSISTENT ACROSS ALL HEIGHTS
@@ -322,18 +345,18 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         TBOUND = kwargs.get('sfc_t', None)
         SREMIS = kwargs.get('sfc_e', 1)
         if TBOUND is None:
-            print "You asked for an upwelling calculation, but didn't give a SFC_T argument to the function!"
-            print "Aborting TAPE5 creation."
-            sys.exit()
+            print("You asked for an upwelling calculation, but didn't give a SFC_T argument to the function!")
+            print("Aborting TAPE5 creation.")
+            return
         surf_refl = kwargs.get('sfc_r', 'l')
         
     """ TAPE5 RECORD 3.1 VARIABLES """
     # This describes the type of atmosphere, the path the radiation goes to, and the gases in the simulation.
     #MODEL = 0 # Selects atmospheric profile
     ITYPE = 2 #selects type of path (slant path from H1 to H2)
-    IBMAX = 49 # number of layer boundaries read in on Record 3.3B
-    NOZERO = 1
-    NOPRNT = 1
+    IBMAX = 0 # number of layer boundaries read in on Record 3.3B - defined here, but set later 
+    NOZERO = 1 # supresses zeroing of small amounts of absorbers
+    NOPRNT = 1 # selects short printout
     NMOL = 7 # 7 molecules (max is 35)
     IPUNCH = 1 # 1 - will results in the LBLRTM creating TAPE7 which contains the layering and structure used in the OD calcs.
     #CO2MX = 380 #ppm (default is 330 ppm)
@@ -371,13 +394,23 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     JCHARP = "A" #Character representing Units for Pressure (mb)
     JCHART = "B" #Character representing units for temperature (Celsius
     JLONG = ""
-    print "For all other gases (except for WVMR), will be using the US Standard ATM profile."
-    JCHAR = " C666666" # This represents the units of the gas concentrations we are specifying (C is g/kg), 6 means use the US Std Atmos.
+    #JCHAR = " C666666" # This represents the units of the gas concentrations we are specifying (C is g/kg), 6 means use the US Std Atmos.
+    JCHAR = " C" # Always writing water vapor mixing ratio to the TAPE5.
+    if MODEL == 0:
+        if 'model_default' not in list(profiles.keys()):
+            print("No default profile specified in the profiles dictionary...using US standard atmosphere")
+            profiles['model_default'] = 6 
+        for trace_gas in ['co2', 'o3', 'n2o', 'co', 'ch4', 'o2']:
+            if trace_gas not in list(profiles.keys()): # We do not have a profile of the trace gas, so use model default
+                JCHAR += str(profiles['model_default'])
+            else: # We do have a profile of the trace gas, but in ppmv
+                JCHAR += "A"
+         
 
-    print "Now writing lines to the TAPE5."
+    print("Now writing data to the TAPE5...")
 
     #Card 1.2
-    print "Writing Card 1.2..."
+    print("Writing Card 1.2...")
     # Print out the main flags for the first line of the TAPE5 file
     write(' HI=%1i', IHIRAC)
     write(' F4=%1i', ILBLF4)
@@ -398,7 +431,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     fid.write('\n')
 
     #Card 1.3
-    print "Writing Card 1.3..."
+    print("Writing Card 1.3...")
     # This part is the wavenumber range (v1-v2) for the LBLRTM to operate with
     write('%10.3f', V1)
     write('%10.3f', V2)
@@ -415,12 +448,12 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     fid.write('\n')
 
     #Card 1.3.a
-    print "Writing Card 1.3.a..."
+    print("Writing Card 1.3.a...")
     write('%s', HMOL_SCALE)
     fid.write('\n')
 
     #Card 1.3.b - Write out the molecular scaling values
-    print "Writing Card 1.3.b..."
+    print("Writing Card 1.3.b...")
     for i in range(1,len(HMOL_VALS)+1,1):
             write('%15.7e', HMOL_VALS[i-1])
             if i < len(HMOL_VALS) and round(i/8.) == i/8.:
@@ -428,7 +461,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     fid.write('\n')
 
     if IEMIT > 0:
-        print "Writing Card 1.4..."
+        print("Writing Card 1.4...")
         #Card 1.4...this card must be written if the LBLRTM is to do radiance/transmissivity calculations
         write('%10.3f', TBOUND)
         write('%10.3f', SREMIS)
@@ -443,7 +476,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         fid.write('\n')
 
     #Card 3.1
-    print "Writing Card 3.1..."
+    print("Writing Card 3.1...")
     write('%5i', MODEL)
     write('%5i', ITYPE)
     write('%5i', IBMAX)
@@ -463,7 +496,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
 
 
     #Card 3.2
-    print "Writing Card 3.2..."
+    print("Writing Card 3.2...")
     # This writes the range of heights (h1-h2) in the LBLRTM height grid 
     # and the angle the reciever is at 
     write('%10.3f', H1)
@@ -473,7 +506,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     fid.write('\n')
 
     if abs(IBMAX) > 0:
-        print "Writing Card 3.3.b..."
+        print("Writing Card 3.3.b...")
         #Card 3.3B
         # 
         # This writes out the heights the user defined profile will be interpolated to by the LBLRTM
@@ -503,7 +536,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     # to come from the US standard atmosphere profile (setting 6).
     if MODEL == 0:
         #Card 3.4
-        print "User supplied a profile...writing Card 3.4..."
+        print("User supplied a profile...writing Card 3.4...")
         # Printing out the number of record in the user-supplied profile
         
         idx = np.where(ZNBD > np.max(altitude))[0]
@@ -543,7 +576,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
             fid.write('\n')
         # If the supplied profile doesn't go high enough, fill in the rest of the profile
         # using the US standard atmosphere.
-        print "Supplied profile doesn't go high enough...filling in the profile with US Std Atmos..."
+        print("Supplied profile doesn't go high enough...filling in the profile with US Std Atmos...")
         if np.max(altitude) < np.max(ZNBD):
             idx = np.where(ZNBD > np.max(altitude))[0]
             for i in idx:
@@ -554,12 +587,12 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
                 write('%10.3f', 0) # units are Celsius
                 fid.write('     ')
                 #Here is where we print out the units string
-                write('%s', 6)
-                write('%s', 6)
+                write('%s', str(profiles['model_default']))
+                write('%s', str(profiles['model_default']))
                 fid.write(' ')
                 write('%s', JLONG)
                 fid.write(' ')
-                write('%s', ' 6666666')
+                write('%s', " " + str(profiles['model_default']) * len(species_vec))
                 fid.write('\n')
 
                 #Print out the values for each atmospheric molecule constituent
@@ -575,6 +608,7 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     """
     if IAERSL > 0:
         #Card 4.1
+        
         # Adding aerosol parameters for the IAERSL flag
         fid.write('%5i' % IHAZE)
         fid.write('%5i' % ISEASN)
@@ -595,15 +629,16 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
         fid.write('%5i%5i%5i selected x-sections are :\n' % (3, 0, 0))
         fid.write('CCL4      F11       F12 \n')
         fid.write('%5i%5i XS 1995 UNEP values\n' % (2, 0))
-        fid.write('%10.3f     AAA\n' % min(altitude))
+        fid.write('%10.3f     AAA\n' % np.min([H1,H2]))
         fid.write('%10.3E%10.3E%10.3E\n' % (1.105e-04, 2.783e-04, 5.027e-04))
-        fid.write('%10.3f     AAA\n' % max(altitude))
+        fid.write('%10.3f     AAA\n' % np.max([H1,H2]))
         fid.write('%10.3E%10.3E%10.3E\n' % (1.105e-04, 2.783e-04, 5.027e-04))
+    
     ISCAN=3
 
     opd = 1.03702766 # AERI
     delv = 1./(2*opd)
-    npts = long(10000/delv+1)
+    npts = int(10000/delv+1)
     varray = np.arange(npts, dtype=int)*delv + delv
     idx1 = np.where(varray > V1 + 50)[0]
     idx2 = np.where(varray > V2 - 50)[0]
@@ -611,8 +646,8 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
     #ISCAN = 1; SCANFN, ISCAN = 2; INTRPL, ISCAN = 3; FFTSCN
     # Currently only set to do FFTSCN for AERI
     if ISCAN == 3:  # 3 means use FFT
-        print "Writing Card 10.1..."
-        print "WARNING!  This portion of the code hasn't been tested.  Use with caution."
+        print("Writing Card 10.1...")
+        print("WARNING!  This portion of the code hasn't been tested.  Use with caution.")
         #Card 8.1
         #Defaults to using AERI ILS characteristics
         #HWHM = 1.03702766
@@ -720,4 +755,18 @@ def makeFile(out_file, V1, V2, MODEL, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,
             #end of Card 9.1  
             
     fid.write("%%%")
-    print "Done."
+    print("Done.")
+
+def testTape5():
+    profiles = {}
+    profiles['pres'] = np.linspace(1000,1,300)
+    profiles['tmpc'] = np.ones(300)*0
+    profiles['wvmr'] = np.ones(300)*1
+    profiles['hght'] = np.linspace(0, 40, 300)
+    profiles['o3'] = np.ones(300) * 0.1
+    makeFile("TEST5", 400, 1600, 0, ZNBD=None, IEMIT=0, HMOL_VALS=[1,380e-6,1,1,1,1,1], IXSECT=1, ISCAN=0, upwelling=False, profiles=profiles)
+    #makeFile("TEST5", 400, 1600, 6, ZNBD=None, IEMIT=1, HMOL_VALS=[1,380e-6,1,1,1,1,1], IXSECT=1, ISCAN=3, upwelling=False)
+
+# TEST CODE
+if __name__ == '__main__':
+    testTape5()
